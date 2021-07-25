@@ -22,7 +22,7 @@ class RhalgrNetwork
     double get_interval();
     std::string get_operation_mode();
     std::map<std::string, double> get_participants();
-    double get_participant_dps(std::string player_name, bool& found);
+    double get_participant_dps(std::string player_name, bool* found);
   private:
     std::string operation_mode = "Idle";
     std::map<std::string, double> participants;

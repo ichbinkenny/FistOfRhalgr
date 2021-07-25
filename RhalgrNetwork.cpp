@@ -53,7 +53,7 @@ void RhalgrNetwork::stop()
 
 bool RhalgrNetwork::set_parse_interval(double seconds)
 {
-  bool status = seconds != 0;
+  bool status = seconds > 0;
   if (status)
   {
     this->parse_interval = seconds;
@@ -76,13 +76,24 @@ std::map<std::string, double> RhalgrNetwork::get_participants()
   return this->participants;
 }
 
-double RhalgrNetwork::get_participant_dps(std::string name, bool& found)
+double RhalgrNetwork::get_participant_dps(std::string name, bool* found)
 {
   double result = -1;
   std::map<std::string, double>::iterator it = participants.find(name);
   if (it != participants.end())
   {
     result = participants.at(name);
+    if (nullptr != found)
+    {
+      *found = true;
+    }
+  }
+  else
+  {
+    if (nullptr != found)
+    {
+      *found = false;
+    }
   }
   return result;
 }
