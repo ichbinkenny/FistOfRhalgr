@@ -10,6 +10,7 @@
 int main()
 {
   RhalgrNetwork network_control("enp3s0", false);
+  network_control.start();
   Rhalgr::Gui main_window;
   main_window.Show();
   return EXIT_SUCCESS;

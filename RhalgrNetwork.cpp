@@ -1,6 +1,10 @@
 #include "RhalgrNetwork.hpp"
 
+#include <iostream>
 #include <vector>
+#include <thread>
+
+#include "PlatformSpecificUtils.h"
 
 RhalgrNetwork::RhalgrNetwork()
 {
@@ -23,6 +27,7 @@ RhalgrNetwork::~RhalgrNetwork()
 {
   if(running)
   {
+    std::cout << "Cleaning up RhalgrNetwork" << std::endl;
     stop();
   }
 }
@@ -30,7 +35,11 @@ RhalgrNetwork::~RhalgrNetwork()
 bool RhalgrNetwork::start()
 {
   bool status = false;
-
+  status = start_interface(); 
+  if (status)
+  {
+    start_capture();
+  }
   return status;
 }
 
@@ -47,8 +56,14 @@ bool RhalgrNetwork::is_active()
 
 void RhalgrNetwork::stop()
 {
-  this->operation_mode = "Halted";
-  this->running = false;
+  operation_mode = "Halted";
+  run_status_mutex.lock();
+  running = false;
+  run_status_mutex.unlock();
+  if (interface_opened)
+  {
+    interface_opened = false;
+  }
 }
 
 bool RhalgrNetwork::set_parse_interval(double seconds)
@@ -56,14 +71,18 @@ bool RhalgrNetwork::set_parse_interval(double seconds)
   bool status = seconds > 0;
   if (status)
   {
+    interval_mutex.lock();
     this->parse_interval = seconds;
+    interval_mutex.unlock();
   }
-  return status;
+return status;
 }
 
 double RhalgrNetwork::get_interval()
 {
+  interval_mutex.lock();
   return this->parse_interval;
+  interval_mutex.unlock();
 }
 
 std::string RhalgrNetwork::get_operation_mode()
@@ -98,5 +117,69 @@ double RhalgrNetwork::get_participant_dps(std::string name, bool* found)
   return result;
 }
 
+std::string RhalgrNetwork::get_interface_ip_addr()
+{
+  return this->ip_addr;
+}
 
+/** BEGIN PRIVATE FUNCTIONS **/
 
+bool RhalgrNetwork::setup_interface()
+{
+  bool status = false;
+  if (!if_name.empty())
+  {
+    pcpp::PcapLiveDevice* temp_device = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByName(if_name);
+    if (temp_device != nullptr)
+    {
+      network_interface = temp_device;
+      status = true;
+    }
+  }
+  return status;
+}
+
+bool RhalgrNetwork::start_interface()
+{
+  if (setup_interface())
+  {
+    interface_opened = network_interface->open();
+    if (interface_opened)
+    {
+      ip_addr = network_interface->getIPv4Address().toString();
+    }
+    else
+    {
+      ip_addr = "255.255.255.255";
+    }
+  }
+  return interface_opened;
+}
+
+void RhalgrNetwork::start_capture()
+{
+  if (interface_opened && !running)
+  {
+    operation_mode = "Capturing";
+    std::thread capture_thread(&RhalgrNetwork::run_capture_loop, this);
+    capture_thread.detach();
+  }
+  else
+  {
+    std::cerr << "WARNING: Trying to start capture when one is already running. Ignoring request." << std::endl;
+  }
+}
+
+void RhalgrNetwork::run_capture_loop()
+{
+  run_status_mutex.lock();
+  running = interface_opened;
+  while(running)
+  {
+    run_status_mutex.unlock();
+    std::cout << "TICK" << std::endl;
+    PCAP_SLEEP(1);
+    run_status_mutex.lock();
+  }
+  run_status_mutex.unlock();
+}
