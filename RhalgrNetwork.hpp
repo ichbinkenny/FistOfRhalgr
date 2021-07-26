@@ -29,10 +29,33 @@ constexpr unsigned char op_code_offset = 18;
 constexpr unsigned char server_id_offset = 22;
 constexpr unsigned char body_timestamp_offset = 24;
 
+constexpr unsigned char game_event_code = 3;
+constexpr unsigned int server_keepalive = 0x039b;
+constexpr unsigned int client_keepalive = 0x023d;
+constexpr unsigned int weapon_sheathe_toggle = 0x8b;
+constexpr unsigned int movement_event = 0x212;
+constexpr unsigned int camera_rotation = 0x1a3;
+constexpr unsigned int crafting_event = 0x179;
+constexpr unsigned int class_change = 0x1d7;
+constexpr unsigned int mount_event = 0x22a;
+constexpr unsigned int friend_online_resp = 0x6e;
+constexpr unsigned int talk_npc = 0x12d;
+constexpr unsigned int say_chat_send = 0x2f4;
+constexpr unsigned int perform_play_note = 0x15e;
+constexpr unsigned int auto_attack = 0x102;
+constexpr unsigned int skill_cast = 0x175;
+
 enum connection_type
 {
   LOBBY, ZONE, CHAT, UNKNOWN
 };
+
+enum perform_notes
+{
+  C = 0x2a, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B, C_HIGH
+};
+constexpr unsigned char perform_note_position = 1;
+
 
 struct FFXIV_Frame
 {
@@ -64,6 +87,7 @@ struct FFXIV_Body
   unsigned long long timestamp;
   char* data;
 };
+
 
 class RhalgrNetwork
 {
@@ -97,6 +121,8 @@ class RhalgrNetwork
     bool is_payload_compressed(uint8_t* payload);
     void set_data_from_payload(uint8_t* payload, unsigned int size, std::vector<char>& data);
     FFXIV_Body populate_frame_data(FFXIV_Frame& frame);
+    void parse_frame_data(FFXIV_Body &body);
+    void handle_perform_note_play(char* perform_data);
     std::string operation_mode = "Idle";
     std::map<std::string, double> participants;
     double parse_interval = 1.0; // How long before DPS calculation occurs.    

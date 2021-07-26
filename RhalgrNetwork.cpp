@@ -219,6 +219,48 @@ void RhalgrNetwork::parse_tcp_packet(pcpp::TcpLayer* layer)
       frame.is_compressed = is_payload_compressed(payload);
       set_data_from_payload(payload, frame.length, frame.data); 
       FFXIV_Body body = populate_frame_data(frame);
+      // TODO Multiple op_code can be in one common message
+      if (body.header.segment_type == game_event_code)
+      {
+        if (body.op_code != server_keepalive && body.op_code != client_keepalive && body.op_code != 612 && body.op_code != 528 && body.op_code != 0xfc && body.op_code != weapon_sheathe_toggle && body.op_code != movement_event && body.op_code != 0x314 && body.op_code != camera_rotation && body.op_code != 0x3a3 && body.op_code != 0x2cb)
+        {
+          if (body.op_code == crafting_event)
+          {
+          }
+          else if (body.op_code == class_change)
+          {
+            std::cout << "Swapped job!" << std::endl;
+          }
+          else if (body.op_code == mount_event)
+          {
+            std::cout << "Mounted!" << std::endl;
+          }
+          else if (body.op_code == talk_npc)
+          {
+
+          }
+          else if (body.op_code == say_chat_send)
+          {
+          
+          }
+          else if (body.op_code == perform_play_note)
+          {
+            handle_perform_note_play(body.data);
+          }
+          else if (body.op_code == auto_attack)
+          {
+
+          }
+          else if (body.op_code == skill_cast)
+          {
+            
+          }
+          else
+          {
+            std::cout << std::hex << "OP CODE: " << body.op_code << std::endl;  
+          }
+        }
+      }
     }
   }
 }
@@ -240,14 +282,12 @@ bool RhalgrNetwork::is_ffxiv_packet(uint8_t* p_payload)
 long long RhalgrNetwork::timestamp_from_payload(uint8_t* payload)
 {
   long long time = *reinterpret_cast<long long*>(&payload[timestamp_offset]);
-  std::cout << "TIME: " << std::hex << time << std::endl;
   return time;
 }
 
 unsigned int RhalgrNetwork::length_from_payload(uint8_t* payload)
 {
   unsigned int len = *reinterpret_cast<unsigned int*>(&payload[length_offset]);
-  std::cout << "LEN: " << len << std::endl;
   return len;
 }
 
@@ -296,3 +336,55 @@ FFXIV_Body RhalgrNetwork::populate_frame_data(FFXIV_Frame &frame)
   return body;
 }
 
+void RhalgrNetwork::parse_frame_data(FFXIV_Body &body)
+{
+  
+}
+
+// All data handling functions below here
+
+void RhalgrNetwork::handle_perform_note_play(char* p_data)
+{
+  switch (perform_notes(p_data[perform_note_position]))
+  {
+    case C:
+      std::cout << "C" << std::endl;
+      break;
+    case Db:
+      std::cout << "C#" << std::endl;
+      break;
+    case D:
+      std::cout << "D" << std::endl;
+      break;
+    case Eb:
+      std::cout << "Eb" << std::endl;
+      break;
+    case E:
+      std::cout << "E" << std::endl;
+      break;
+    case F:
+      std::cout << "F" << std::endl;
+      break;
+    case Gb:
+      std::cout << "F#" << std::endl;
+      break;
+    case G:
+      std::cout << "G" << std::endl;
+      break;
+    case Ab:
+      std::cout << "Ab" << std::endl;
+      break;
+    case A:
+      std::cout << "A" << std::endl;
+      break;
+    case Bb:
+      std::cout << "Bb" << std::endl;
+      break;
+    case B:
+      std::cout << "B" << std::endl;
+      break;
+    case C_HIGH:
+      std::cout << "C 8va" << std::endl;
+      break;
+  }
+}
