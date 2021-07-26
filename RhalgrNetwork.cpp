@@ -288,12 +288,11 @@ FFXIV_Body RhalgrNetwork::populate_frame_data(FFXIV_Frame &frame)
   body.header.length = *reinterpret_cast<unsigned int*>(&data[0]);
   body.header.action_performer_id = *reinterpret_cast<unsigned int*>(&data[performer_offset]);
   body.header.action_target_id = *reinterpret_cast<unsigned int*>(&data[target_offset]);
-  body.header.segment_type = FFXIV_segment_type(*reinterpret_cast<unsigned short*>(&data[segment_offset]));
+  body.header.segment_type = *reinterpret_cast<unsigned short*>(&data[segment_offset]);
   body.op_code = *reinterpret_cast<unsigned short*>(&data[op_code_offset]);
   body.server_id = *reinterpret_cast<unsigned short*>(&data[server_id_offset]);
   body.timestamp = *reinterpret_cast<unsigned long long*>(&data[body_timestamp_offset]);
   body.data = &data[ffxiv_body_len];
-  std::cout << "BODY LEN: " << body.header.length << std::endl;
   return body;
 }
 

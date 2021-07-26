@@ -23,7 +23,7 @@ constexpr unsigned char compression_offset = 32;
 constexpr unsigned char body_len_offset = 0;
 constexpr unsigned char performer_offset = 4;
 constexpr unsigned char target_offset = 8;
-constexpr unsigned char segment_offset = 10;
+constexpr unsigned char segment_offset = 12;
 
 constexpr unsigned char op_code_offset = 18;
 constexpr unsigned char server_id_offset = 22;
@@ -32,11 +32,6 @@ constexpr unsigned char body_timestamp_offset = 24;
 enum connection_type
 {
   LOBBY, ZONE, CHAT, UNKNOWN
-};
-
-enum FFXIV_segment_type
-{
-  INIT = 1, RECV = 2, EVENT = 3, PING = 7, PONG = 8, ENCINIT = 9, ENCRECV = 10
 };
 
 struct FFXIV_Frame
