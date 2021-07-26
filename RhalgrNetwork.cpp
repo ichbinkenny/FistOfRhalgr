@@ -3,6 +3,7 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <algorithm>
 
 #include "PlatformSpecificUtils.h"
 
@@ -27,7 +28,6 @@ RhalgrNetwork::~RhalgrNetwork()
 {
   if(running)
   {
-    std::cout << "Cleaning up RhalgrNetwork" << std::endl;
     stop();
   }
 }
@@ -172,14 +172,128 @@ void RhalgrNetwork::start_capture()
 
 void RhalgrNetwork::run_capture_loop()
 {
+  pcpp::RawPacketVector dataVector;
+  network_interface->startCapture(dataVector);
   run_status_mutex.lock();
   running = interface_opened;
   while(running)
   {
     run_status_mutex.unlock();
-    std::cout << "TICK" << std::endl;
-    PCAP_SLEEP(1);
+    interval_mutex.lock();
+    PCAP_SLEEP(parse_interval);
+    interval_mutex.unlock();
+    get_participant_info(dataVector);
     run_status_mutex.lock();
   }
   run_status_mutex.unlock();
+  network_interface->stopCapture();
 }
+
+void RhalgrNetwork::get_participant_info(pcpp::RawPacketVector& data)
+{
+  for(pcpp::RawPacketVector::ConstVectorIterator it = data.begin(); it != data.end(); it++)
+  {
+    pcpp::Packet packet(*it);
+    pcpp::TcpLayer* tcp_layer = packet.getLayerOfType<pcpp::TcpLayer>();
+    if (nullptr != tcp_layer)
+    {
+      parse_tcp_packet(tcp_layer); 
+    }
+  }
+  data.clear();
+}
+
+void RhalgrNetwork::parse_tcp_packet(pcpp::TcpLayer* layer)
+{
+  auto payload = layer->getLayerPayload();
+  size_t payload_size = layer->getLayerPayloadSize();
+  if (payload_size >= 40)
+  {
+    if (is_ffxiv_packet(payload))
+    {
+      FFXIV_Frame frame;
+      frame.timestamp_ms = timestamp_from_payload(payload);
+      frame.length = length_from_payload(payload);
+      frame.type = type_from_payload(payload);
+      frame.count = count_from_payload(payload);
+      frame.is_compressed = is_payload_compressed(payload);
+      set_data_from_payload(payload, frame.length, frame.data); 
+      FFXIV_Body body = populate_frame_data(frame);
+    }
+  }
+}
+
+bool RhalgrNetwork::is_ffxiv_packet(uint8_t* p_payload)
+{
+  bool valid = false;
+  for (int i = 0; i < 8; i++)
+  {
+    valid = p_payload[i] == FFXIV_MAGIC[i];
+    if (!valid)
+    {
+      break;
+    }
+  }
+  return valid;
+}
+
+long long RhalgrNetwork::timestamp_from_payload(uint8_t* payload)
+{
+  long long time = *reinterpret_cast<long long*>(&payload[timestamp_offset]);
+  std::cout << "TIME: " << std::hex << time << std::endl;
+  return time;
+}
+
+unsigned int RhalgrNetwork::length_from_payload(uint8_t* payload)
+{
+  unsigned int len = *reinterpret_cast<unsigned int*>(&payload[length_offset]);
+  std::cout << "LEN: " << len << std::endl;
+  return len;
+}
+
+connection_type RhalgrNetwork::type_from_payload(uint8_t* payload)
+{
+  connection_type type = connection_type(*reinterpret_cast<unsigned short*>(&payload[type_offset]));
+  return type;
+}
+
+unsigned short RhalgrNetwork::count_from_payload(uint8_t* payload)
+{
+  unsigned short count = *reinterpret_cast<unsigned short*>(&payload[type_offset]); 
+  return count;
+}
+
+bool RhalgrNetwork::is_payload_compressed(uint8_t* payload)
+{
+  bool compressed = payload[compression_offset] == true;
+  return compressed;
+}
+
+void RhalgrNetwork::set_data_from_payload(uint8_t* payload, unsigned int size, std::vector<char>& data)
+{
+  if (size != 0)
+  {
+    for (unsigned int i = 0; i != size; ++i)
+    {
+      data.push_back(payload[i]);
+    }
+    //std::reverse(data.begin(), data.end());
+  }
+}
+
+FFXIV_Body RhalgrNetwork::populate_frame_data(FFXIV_Frame &frame)
+{
+  FFXIV_Body body;
+  char* data = &frame.data[header_size];
+  body.header.length = *reinterpret_cast<unsigned int*>(&data[0]);
+  body.header.action_performer_id = *reinterpret_cast<unsigned int*>(&data[performer_offset]);
+  body.header.action_target_id = *reinterpret_cast<unsigned int*>(&data[target_offset]);
+  body.header.segment_type = FFXIV_segment_type(*reinterpret_cast<unsigned short*>(&data[segment_offset]));
+  body.op_code = *reinterpret_cast<unsigned short*>(&data[op_code_offset]);
+  body.server_id = *reinterpret_cast<unsigned short*>(&data[server_id_offset]);
+  body.timestamp = *reinterpret_cast<unsigned long long*>(&data[body_timestamp_offset]);
+  body.data = &data[ffxiv_body_len];
+  std::cout << "BODY LEN: " << body.header.length << std::endl;
+  return body;
+}
+
