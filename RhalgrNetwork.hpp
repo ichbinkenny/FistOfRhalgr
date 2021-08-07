@@ -7,7 +7,11 @@
 #include <future>
 #include <vector>
 #include "PcapLiveDeviceList.h"
+#include "SkillCodes.hpp"
+#include "StatusEffectCodes.hpp"
 #include "TcpLayer.h"
+#include "DataConversion.hpp"
+#include "RhalgrMemory.hpp" // needed to obtain certain info from game process
 #include <mutex>
 
 constexpr unsigned char FFXIV_MAGIC[8] = {0x52, 0x52, 0xA0, 0x41, 0xFF, 0x5D, 0x46, 0xE2};
@@ -37,13 +41,33 @@ constexpr unsigned int movement_event = 0x212;
 constexpr unsigned int camera_rotation = 0x1a3;
 constexpr unsigned int crafting_event = 0x179;
 constexpr unsigned int class_change = 0x1d7;
-constexpr unsigned int mount_event = 0x22a;
+constexpr unsigned int remote_player_class_change = 0x199;
+constexpr unsigned int cast_finish = 0x22a;
 constexpr unsigned int friend_online_resp = 0x6e;
 constexpr unsigned int talk_npc = 0x12d;
 constexpr unsigned int say_chat_send = 0x2f4;
 constexpr unsigned int perform_play_note = 0x15e;
-constexpr unsigned int auto_attack = 0x102;
+constexpr unsigned int player_attack = 0x0102;
 constexpr unsigned int skill_cast = 0x175;
+constexpr unsigned int change_target = 0x02c0;
+constexpr unsigned int request_playtime = 0x01a8;
+constexpr unsigned int playtime_request_response = 0x02be;
+constexpr unsigned int actor_cast = 0x02a7;
+constexpr unsigned int ability_cast_8_man = 0x0345;
+constexpr unsigned int remote_player_status_effect = 0x0151;
+constexpr unsigned int client_update_search_info = 0x0219;
+
+constexpr unsigned int send_tell = 0x0064;
+constexpr unsigned int send_tell_message_offset = 51;
+constexpr unsigned int send_tell_recipient_name_offset = 19;
+constexpr unsigned int send_tell_failed = 0x0066;
+
+constexpr unsigned int party_message = 0x0065;
+constexpr unsigned int party_join_disband = 0x006e;
+
+constexpr unsigned int attack_damage_offset = 48;
+
+const std::string ffxiv_proc_name("ffxiv_dx11.exe");
 
 enum connection_type
 {
@@ -110,7 +134,9 @@ class RhalgrNetwork
     bool setup_interface();
     bool start_interface();
     void start_capture();
+    void start_mem_read();
     void run_capture_loop();
+    void run_mem_loop();
     void get_participant_info(pcpp::RawPacketVector& data);
     void parse_tcp_packet(pcpp::TcpLayer* layer);
     bool is_ffxiv_packet(uint8_t* p_payload);
@@ -119,20 +145,34 @@ class RhalgrNetwork
     connection_type type_from_payload(uint8_t* payload);
     unsigned short count_from_payload(uint8_t* payload);
     bool is_payload_compressed(uint8_t* payload);
+    void compressed_frame_to_payload_data(uint8_t* payload, unsigned int size, std::vector<char>& data);
     void set_data_from_payload(uint8_t* payload, unsigned int size, std::vector<char>& data);
     FFXIV_Body populate_frame_data(FFXIV_Frame& frame);
     void parse_frame_data(FFXIV_Body &body);
+    void handle_job_swap(const char* swap_data, const uint32_t length);
     void handle_perform_note_play(char* perform_data);
+    void parse_skill_info(const char* skill_data, const uint32_t data_len);
+    void parse_cast_end(const char* cast_data, const uint32_t data_len);
+    void handle_playtime_response(const char* playtime_data, const uint32_t data_len);
+    void handle_send_tell(const char* tell_data, const uint32_t data_len);
+    void handle_send_tell_failure(const char* tell_data, const uint32_t data_len);
+    void handle_remote_player_status_effect(const char* attack_data, const uint32_t data_len);
+    void handle_ability8_packet(const char* ability_data, const uint32_t data_len);
+    void update_player_dps(const char* attack_data, const uint32_t data_len);
     std::string operation_mode = "Idle";
     std::map<std::string, double> participants;
     double parse_interval = 1.0; // How long before DPS calculation occurs.    
     bool running;
     bool interface_opened;
+    bool mem_cap_running;
     std::mutex run_status_mutex;
     std::mutex interval_mutex;
     std::string if_name;
     std::string ip_addr;
     pcpp::PcapLiveDevice* network_interface;
+
+    // Mem reading functions
+    RhalgrMemory* mem_reader;
 };
 
 #endif
